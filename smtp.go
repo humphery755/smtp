@@ -21,7 +21,59 @@ func New(address, username, password string) *Smtp {
 	}
 }
 
-func (this *Smtp) SendMail(from, tos, subject, body string, contentType ...string) error {
+func Dial(addr string) (*smtp.Client, error) {
+    conn, err := tls.Dial("tcp", addr, nil)
+    if err != nil {
+        fmt.Println("Dialing Error:", err)
+        return nil, err
+    }
+    host, _, _ := net.SplitHostPort(addr)
+    return smtp.NewClient(conn, host)
+}
+
+func _SendMail4TLS(addr string, auth smtp.Auth, from string,
+    to []string, msg []byte) (err error) {
+    //create smtp client
+    c, err := Dial(addr)
+    if err != nil {
+        fmt.Println("Create smpt client error:", err)
+        return err
+    }
+    defer c.Close()
+    if auth != nil {
+        if ok, _ := c.Extension("AUTH"); ok {
+            if err = c.Auth(auth); err != nil {
+                fmt.Println("Error during AUTH", err)
+                return err
+            }
+        }
+    }
+    if err = c.Mail(from); err != nil {
+        fmt.Println("Error mail:",err)
+        return err
+    }
+    for _, addr := range to {
+        if err = c.Rcpt(addr); err != nil {
+            fmt.Println("Error Rcpt:",err,addr)
+            return err
+        }
+    }
+    w, err := c.Data()
+    if err != nil {
+        return err
+    }
+    _, err = w.Write(msg)
+    if err != nil {
+        return err
+    }
+    err = w.Close()
+    if err != nil {
+        return err
+    }
+    return c.Quit()
+}
+
+func (this *Smtp) _SendMail(istsl,from, tos, subject, body string, contentType ...string) error {
 	if this.Address == "" {
 		return fmt.Errorf("address is necessary")
 	}
@@ -70,5 +122,16 @@ func (this *Smtp) SendMail(from, tos, subject, body string, contentType ...strin
 	message += "\r\n" + b64.EncodeToString([]byte(body))
 
 	auth := smtp.PlainAuth("", this.Username, this.Password, hp[0])
-	return smtp.SendMail(this.Address, auth, from, strings.Split(tos, ";"), []byte(message))
+	if(istsl)
+		return _SendMail4TLS(this.Address, auth, from, strings.Split(tos, ";"), []byte(message))
+	else
+		return smtp.SendMail(this.Address, auth, from, strings.Split(tos, ";"), []byte(message))
+}
+
+func (this *Smtp) SendMail(from, tos, subject, body string, contentType ...string) error {
+	return _SendMail(false,from, tos, subject, body string, contentType)
+}
+
+func (this *Smtp) SendMail4TLS(from, tos, subject, body string, contentType ...string) error {
+	return _SendMail(true,from, tos, subject, body string, contentType)
 }
