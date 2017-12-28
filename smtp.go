@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/smtp"
 	"strings"
+	"crypto/tls"
+	"net"
 )
 
 type Smtp struct {
@@ -73,7 +75,7 @@ func _SendMail4TLS(addr string, auth smtp.Auth, from string,
     return c.Quit()
 }
 
-func (this *Smtp) _SendMail(istsl,from, tos, subject, body string, contentType ...string) error {
+func (this *Smtp) _SendMail(istsl bool,from, tos, subject, body string, contentType string) error {
 	if this.Address == "" {
 		return fmt.Errorf("address is necessary")
 	}
@@ -108,7 +110,7 @@ func (this *Smtp) _SendMail(istsl,from, tos, subject, body string, contentType .
 	header["MIME-Version"] = "1.0"
 
 	ct := "text/plain; charset=UTF-8"
-	if len(contentType) > 0 && contentType[0] == "html" {
+	if len(contentType) > 0 && contentType == "html" {
 		ct = "text/html; charset=UTF-8"
 	}
 
@@ -122,16 +124,17 @@ func (this *Smtp) _SendMail(istsl,from, tos, subject, body string, contentType .
 	message += "\r\n" + b64.EncodeToString([]byte(body))
 
 	auth := smtp.PlainAuth("", this.Username, this.Password, hp[0])
-	if(istsl)
+	if(istsl){
 		return _SendMail4TLS(this.Address, auth, from, strings.Split(tos, ";"), []byte(message))
-	else
+	} else {
 		return smtp.SendMail(this.Address, auth, from, strings.Split(tos, ";"), []byte(message))
+	}
 }
 
-func (this *Smtp) SendMail(from, tos, subject, body string, contentType ...string) error {
-	return _SendMail(false,from, tos, subject, body string, contentType)
+func (this *Smtp) SendMail(from, tos, subject, body string, contentType string) error {
+	return this._SendMail(false,from, tos, subject, body, contentType)
 }
 
-func (this *Smtp) SendMail4TLS(from, tos, subject, body string, contentType ...string) error {
-	return _SendMail(true,from, tos, subject, body string, contentType)
+func (this *Smtp) SendMail4TLS(from, tos, subject, body string, contentType string) error {
+	return this._SendMail(true,from, tos, subject, body, contentType)
 }
